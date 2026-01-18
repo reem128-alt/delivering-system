@@ -1,0 +1,231 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+input AcceptOrderInput {
+  driverId: Int!
+  orderId: Int!
+}
+
+type AuthPayload {
+  accessToken: String!
+  user: UserModel!
+}
+
+input AuthorizePaymentDto {
+  paymentMethodId: String!
+  savePaymentMethod: Boolean
+}
+
+input CapturePaymentDto {
+  amount: Int
+}
+
+input CreateDriverInput {
+  email: String!
+  lat: Float!
+  licensePlate: String!
+  lng: Float!
+  name: String!
+  password: String!
+  phone: String!
+  status: DriverStatus
+  vehicleType: String!
+}
+
+input CreateOrderInput {
+  dropoffLat: Float!
+  dropoffLng: Float!
+  estimatedEta: Float
+  pickupLat: Float!
+  pickupLng: Float!
+  price: Float!
+  userId: Int!
+}
+
+input CreatePaymentDto {
+  amount: Int!
+  currency: String
+  orderId: Int!
+  paymentMethodId: String!
+  provider: String!
+  status: String
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type DriverModel {
+  createdAt: DateTime!
+  id: Int!
+  licensePlate: String!
+  phone: String!
+  status: DriverStatus!
+  updatedAt: DateTime!
+  user: DriverUserModel
+  userId: Int!
+  vehicleType: String!
+}
+
+"""Driver availability status"""
+enum DriverStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+type DriverUserModel {
+  email: String!
+  id: Int!
+  name: String!
+  role: String!
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type Mutation {
+  acceptOrder(input: AcceptOrderInput!): OrderModel!
+  authorizePayment(authorizePaymentDto: AuthorizePaymentDto!, paymentId: String!): PaymentEntity!
+  capturePayment(capturePaymentDto: CapturePaymentDto!, paymentId: String!): PaymentEntity!
+  createDriver(input: CreateDriverInput!): DriverModel!
+  createOrder(input: CreateOrderInput!): OrderModel!
+  createPayment(createPaymentDto: CreatePaymentDto!): PaymentEntity!
+  login(input: LoginInput!): AuthPayload!
+  refundPayment(paymentId: String!, refundPaymentDto: RefundPaymentDto!): PaymentEntity!
+  register(input: RegisterInput!): AuthPayload!
+  removeDriver(id: Int!): DriverModel!
+  removeOrder(id: Int!): OrderModel!
+  removeUser(id: Int!): UserModel!
+  updateDriverLocation(input: UpdateDriverLocationInput!): DriverModel!
+  updateDriverStatus(input: UpdateDriverStatusInput!): DriverModel!
+  updateOrderStatus(input: UpdateOrderStatusInput!): OrderModel!
+  updateUser(id: Int!, name: String, role: String): UserModel!
+}
+
+type NearestDriverModel {
+  distanceMeters: Float!
+  id: Int!
+  status: String!
+  userId: Int!
+}
+
+type NotificationModel {
+  createdAt: DateTime!
+  data: String
+  id: Int!
+  isRead: Boolean!
+  message: String!
+  readAt: DateTime
+  title: String!
+  type: String!
+  updatedAt: DateTime!
+  userId: Int!
+}
+
+type OrderModel {
+  createdAt: DateTime!
+  driverId: Int
+  estimatedEta: Int
+  id: Int!
+  price: Float!
+  status: OrderStatus!
+  updatedAt: DateTime!
+  userId: Int!
+}
+
+"""Lifecycle state of a delivery order"""
+enum OrderStatus {
+  CANCELED
+  CREATED
+  DELIVERED
+  DRIVER_ASSIGNED
+  IN_PROGRESS
+  PAID
+  PAYMENT_AUTHORIZED
+  PRICE_ESTIMATED
+  SEARCHING_DRIVER
+}
+
+type PaymentEntity {
+  amount: Int!
+  authorizationId: String
+  captureAmount: Int
+  capturedAt: DateTime
+  clientSecret: String
+  createdAt: DateTime!
+  currency: String!
+  driverAmount: Int
+  id: String!
+  orderId: Int!
+  paymentMethod: String
+  platformFee: Int
+  provider: String!
+  providerTxId: String
+  refundAmount: Int
+  refundReason: String
+  refundedAt: DateTime
+  status: String!
+  updatedAt: DateTime!
+}
+
+type Query {
+  driver(id: Int!): DriverModel
+  driverByUser(userId: Int!): DriverModel
+  drivers: [DriverModel!]!
+  health: String!
+  me: UserModel!
+  myNotifications: [NotificationModel!]!
+  myOrders: [OrderModel!]!
+  nearestDrivers(limit: Int, pickupLat: Float!, pickupLng: Float!): [NearestDriverModel!]!
+  order(id: Int!): OrderModel
+  orders: [OrderModel!]!
+  payment(paymentId: String!): PaymentEntity
+  paymentByOrder(orderId: Int!): PaymentEntity
+  pendingOrders: [OrderModel!]!
+  user(id: Int!): UserModel
+  userNotifications(userId: Int!): [NotificationModel!]!
+  userOrders(userId: Int!): [OrderModel!]!
+  users: [UserModel!]!
+}
+
+input RefundPaymentDto {
+  amount: Int!
+  reason: String!
+}
+
+input RegisterInput {
+  email: String!
+  name: String
+  password: String!
+}
+
+input UpdateDriverLocationInput {
+  driverId: Int!
+  lat: Float!
+  lng: Float!
+}
+
+input UpdateDriverStatusInput {
+  driverId: Int!
+  status: DriverStatus!
+}
+
+input UpdateOrderStatusInput {
+  driverId: Int
+  orderId: Int!
+  status: OrderStatus!
+}
+
+type UserModel {
+  createdAt: DateTime!
+  email: String!
+  id: Int!
+  name: String
+  role: String!
+  updatedAt: DateTime!
+}

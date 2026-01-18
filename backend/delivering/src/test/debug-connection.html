@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug WebSocket Connection</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>🔍 WebSocket Debug</h1>
+    <div id="log"></div>
+    
+    <script>
+        const logDiv = document.getElementById('log');
+        
+        function log(message) {
+            logDiv.innerHTML += `<div>${message}</div>`;
+        }
+        
+        log('🧪 Starting WebSocket debug...');
+        
+        // Test 1: Basic connection without auth
+        log('📡 Test 1: Basic connection...');
+        const basicSocket = io('http://localhost:3000/notifications');
+        
+        basicSocket.on('connect', () => {
+            log('✅ Basic connection successful!');
+            
+            // Test 2: Connection with auth
+            log('📡 Test 2: Connection with auth...');
+            const authSocket = io('http://localhost:3000/notifications', {
+                auth: { token: 'test-token' }
+            });
+            
+            authSocket.on('connect', () => {
+                log('✅ Auth connection successful!');
+            });
+            
+            authSocket.on('connect_error', (error) => {
+                log('❌ Auth connection failed: ' + error.message);
+            });
+        });
+        
+        basicSocket.on('connect_error', (error) => {
+            log('❌ Basic connection failed: ' + error.message);
+        });
+        
+        basicSocket.on('disconnect', () => {
+            log('🔌 Disconnected');
+        });
+        
+        // Test 3: Check server info
+        log('📡 Test 3: Checking server...');
+        fetch('http://localhost:3000/health')
+            .then(response => response.json())
+            .then(data => log('✅ Server health: ' + JSON.stringify(data)))
+            .catch(error => log('❌ Server health check failed: ' + error.message));
+    </script>
+</body>
+</html>

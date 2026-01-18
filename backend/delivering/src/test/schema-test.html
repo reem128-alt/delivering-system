@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GraphQL Schema Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .log { background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🔍 GraphQL Schema Test</h1>
+    
+    <div>
+        <input type="text" id="token" placeholder="JWT Token" style="width: 400px;">
+        <br><br>
+        <button onclick="testIntrospection()">Test Schema Introspection</button>
+        <button onclick="testUserNotifications()">Test User Notifications Query</button>
+        <button onclick="testSimpleQuery()">Test Simple Query</button>
+    </div>
+    
+    <div id="log" class="log"></div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        async function testIntrospection() {
+            const token = document.getElementById('token').value;
+            
+            try {
+                log('🔍 Testing GraphQL schema introspection...');
+                
+                const query = `
+                    query {
+                        __schema {
+                            queryType {
+                                fields {
+                                    name
+                                    description
+                                }
+                            }
+                        }
+                    }
+                `;
+                
+                const response = await fetch('http://localhost:3000/graphql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ query })
+                });
+                
+                const result = await response.json();
+                
+                if (result.errors) {
+                    log(`❌ Schema introspection errors:\n${JSON.stringify(result.errors, null, 2)}`);
+                } else {
+                    const fields = result.data.__schema.queryType.fields;
+                    log(`✅ Schema introspection success!\nAvailable queries:\n${fields.map(f => `- ${f.name}`).join('\n')}`);
+                    
+                    const hasUserNotifications = fields.some(f => f.name === 'userNotifications');
+                    log(`\n📋 userNotifications query available: ${hasUserNotifications ? '✅ YES' : '❌ NO'}`);
+                }
+            } catch (error) {
+                log(`❌ Schema introspection error: ${error.message}`);
+            }
+        }
+        
+        async function testUserNotifications() {
+            const token = document.getElementById('token').value;
+            
+            try {
+                log('📋 Testing userNotifications query...');
+                
+                const query = `
+                    query GetUserNotifications($userId: Int!) {
+                        userNotifications(userId: $userId) {
+                            id
+                            type
+                            title
+                            message
+                            isRead
+                            createdAt
+                        }
+                    }
+                `;
+                
+                const response = await fetch('http://localhost:3000/graphql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ 
+                        query,
+                        variables: { userId: 1 }
+                    })
+                });
+                
+                log(`Response status: ${response.status} ${response.statusText}`);
+                
+                const result = await response.json();
+                
+                if (result.errors) {
+                    log(`❌ userNotifications query errors:\n${JSON.stringify(result.errors, null, 2)}`);
+                } else {
+                    log(`✅ userNotifications query success:\n${JSON.stringify(result, null, 2)}`);
+                }
+            } catch (error) {
+                log(`❌ userNotifications query error: ${error.message}`);
+            }
+        }
+        
+        async function testSimpleQuery() {
+            const token = document.getElementById('token').value;
+            
+            try {
+                log('🔧 Testing simple query (orders)...');
+                
+                const query = `
+                    query {
+                        orders {
+                            id
+                            status
+                            price
+                        }
+                    }
+                `;
+                
+                const response = await fetch('http://localhost:3000/graphql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ query })
+                });
+                
+                log(`Simple query response status: ${response.status} ${response.statusText}`);
+                
+                const result = await response.json();
+                
+                if (result.errors) {
+                    log(`❌ Simple query errors:\n${JSON.stringify(result.errors, null, 2)}`);
+                } else {
+                    log(`✅ Simple query success:\n${JSON.stringify(result, null, 2)}`);
+                }
+            } catch (error) {
+                log(`❌ Simple query error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

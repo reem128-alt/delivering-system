@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//////////////////////////////////////
+// ENUMS
+//////////////////////////////////////
+
+enum UserRole {
+  USER
+  DRIVER
+  ADMIN
+}
+
+enum OrderStatus {
+  CREATED
+  PRICE_ESTIMATED
+  PAYMENT_AUTHORIZED
+  SEARCHING_DRIVER
+  DRIVER_ASSIGNED
+  IN_PROGRESS
+  DELIVERED
+  PAID
+  CANCELED
+}
+
+enum DriverStatus {
+  OFFLINE
+  AVAILABLE
+  BUSY
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+//////////////////////////////////////
+// USER
+//////////////////////////////////////
+
+model User {
+  id       Int      @id @default(autoincrement())
+  email    String   @unique
+  password String
+  name     String?
+  role     UserRole @default(USER)
+
+  orders        Order[]
+  driver        Driver?        @relation("UserDriver")
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//////////////////////////////////////
+// DRIVER
+//////////////////////////////////////
+
+model Driver {
+  id     Int  @id @default(autoincrement())
+  userId Int  @unique
+  user   User @relation("UserDriver", fields: [userId], references: [id])
+
+  status DriverStatus @default(OFFLINE)
+
+  // Driver profile information
+  phone        String?
+  vehicleType  String?
+  licensePlate String?
+
+  // PostGIS location
+  location Unsupported("geography(Point, 4326)")
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//////////////////////////////////////
+// ORDER
+//////////////////////////////////////
+
+model Order {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  driverId Int?
+  driver   Driver? @relation(fields: [driverId], references: [id])
+
+  status OrderStatus @default(CREATED)
+
+  // pickup & dropoff locations
+  pickupLocation  Unsupported("geography(Point, 4326)")
+  dropoffLocation Unsupported("geography(Point, 4326)")
+
+  price        Float
+  estimatedEta Int? // minutes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payment Payment? @relation("OrderPayment")
+}
+
+//////////////////////////////////////
+// PAYMENT
+//////////////////////////////////////
+
+model Payment {
+  id              String @id @default(cuid())
+  orderId         Int    @unique
+  order           Order  @relation("OrderPayment", fields: [orderId], references: [id])
+
+  amount          Float
+  currency        String @default("USD")
+  status          PaymentStatus @default(PENDING)
+  provider        String  // stripe, paypal, etc
+  providerTxId    String? // Transaction ID from payment provider
+  paymentMethod   String? // card, paypal, etc
+  
+  // Authorization & Capture fields
+  authorizationId String? // ID for authorized payment
+  capturedAt      DateTime? // When payment was captured
+  captureAmount   Float?    // Amount actually captured
+  
+  // Refund tracking
+  refundAmount    Float?  @default(0)
+  refundReason    String?
+  refundedAt      DateTime?
+  
+  // Fee tracking (platform commission)
+  platformFee     Float?  @default(0)
+  driverAmount    Float?  // Amount going to driver
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+//////////////////////////////////////
+// NOTIFICATIONS
+//////////////////////////////////////
+
+model Notification {
+  id     Int  @id @default(autoincrement())
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    String
+  title   String
+  message String
+  data    String? @db.Text
+  isRead  Boolean  @default(false)
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}

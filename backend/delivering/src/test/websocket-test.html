@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Notification Test</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .notification { 
+            background: #fff3cd; 
+            border: 1px solid #ffeaa7; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 5px;
+        }
+        .log { 
+            background: #f8f9fa; 
+            border: 1px solid #dee2e6; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        input, button { padding: 10px; margin: 5px; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 WebSocket Notification Test</h1>
+        
+        <div id="status" class="status disconnected">❌ Disconnected</div>
+        
+        <div>
+            <h3>🔐 Authentication</h3>
+            <input type="text" id="token" placeholder="Enter JWT Token" style="width: 400px;">
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+        </div>
+        
+       
+        <div>
+            <h3>🔔 Notifications</h3>
+            <div id="notifications"></div>
+        </div>
+        
+        <div>
+            <h3>📋 Event Log</h3>
+            <div id="log" class="log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function showNotification(data) {
+            const notifDiv = document.getElementById('notifications');
+            const notif = document.createElement('div');
+            notif.className = 'notification';
+            notif.innerHTML = `
+                <strong>🔔 ${data.type || 'Notification'}</strong><br>
+                ${data.title || 'No title'}<br>
+                ${data.message || 'No message'}<br>
+                <small>${JSON.stringify(data.data || {}, null, 2)}</small>
+            `;
+            notifDiv.appendChild(notif);
+        }
+        
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = '✅ Connected';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = '❌ Disconnected';
+            }
+        }
+        
+        function connect() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                alert('Please enter a JWT token');
+                return;
+            }
+            
+            disconnect(); // Disconnect existing connection
+            
+            socket = io('http://localhost:3000/notifications', {
+                auth: { token }
+            });
+            
+            socket.on('connect', () => {
+                log('✅ Connected to WebSocket');
+                updateStatus(true);
+            });
+            
+            socket.on('disconnect', () => {
+                log('❌ Disconnected from WebSocket');
+                updateStatus(false);
+            });
+            
+            socket.on('connection:established', (data) => {
+                log('🔗 Connection established: ' + JSON.stringify(data));
+            });
+            
+            socket.on('notification:new', (data) => {
+                log('🔔 New notification received');
+                showNotification(data);
+            });
+            
+            socket.on('order:created', (data) => {
+                log('📦 Order created event received');
+                showNotification({
+                    type: 'ORDER_CREATED',
+                    title: 'New Order Created',
+                    message: `Order #${data.orderId} has been created`,
+                    data: data
+                });
+            });
+            
+            socket.on('error', (error) => {
+                log('❌ WebSocket error: ' + JSON.stringify(error));
+            });
+        }
+        
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                updateStatus(false);
+                log('🔌 Manually disconnected');
+            }
+        }
+        
+        async function createOrder() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const mutation = `
+                mutation CreateOrder {
+                    createOrder(input: {
+                        userId: ${document.getElementById('userId').value}
+                        pickupLat: ${document.getElementById('pickupLat').value}
+                        pickupLng: ${document.getElementById('pickupLng').value}
+                        dropoffLat: ${document.getElementById('dropoffLat').value}
+                        dropoffLng: ${document.getElementById('dropoffLng').value}
+                        price: ${document.getElementById('price').value}
+                        status: CREATED
+                    }) {
+                        id
+                        userId
+                        status
+                        price
+                        estimatedEta
+                    }
+                }
+            `;
+            
+            try {
+                log('📦 Creating order...');
+                const response = await fetch('http://localhost:3000/graphql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ query: mutation })
+                });
+                
+                const result = await response.json();
+                log('📦 Order response: ' + JSON.stringify(result, null, 2));
+                
+                if (result.errors) {
+                    log('❌ Order creation failed: ' + JSON.stringify(result.errors));
+                } else {
+                    log('✅ Order created successfully!');
+                }
+            } catch (error) {
+                log('❌ Order creation error: ' + error.message);
+            }
+        }
+        
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+        }
+        
+        // Auto-connect if token is in URL
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            if (token) {
+                document.getElementById('token').value = token;
+                connect();
+            }
+        };
+    </script>
+</body>
+</html>

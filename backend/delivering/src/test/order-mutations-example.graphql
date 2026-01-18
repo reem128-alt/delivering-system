@@ -1,0 +1,352 @@
+# Order and Driver Mutations - GraphQL Examples
+# These examples show how to create orders and assign nearest drivers
+# Updated to match actual Prisma schema
+
+# ====== MUTATION EXAMPLES ======
+
+# 1. Create Driver Mutation (creates user and driver together)
+mutation CreateDriver {
+  createDriver(input: {
+    # User details
+    email: "ahmed.driver@example.com"
+    password: "password123"
+    name: "Ahmed Mohamed"
+    
+    # Driver details
+    phone: "+201234567890"
+    vehicleType: "motorcycle"
+    licensePlate: "ABC-1234"
+    lat: 30.0444
+    lng: 31.2357
+  }) {
+    id
+    userId
+    phone
+    vehicleType
+    licensePlate
+    status
+  }
+}
+
+# 2. Create Order Mutation (user must exist first)
+mutation CreateOrder {
+  createOrder(input: {
+    userId: 3  # User must be created separately first
+    pickupLat: 30.0444
+    pickupLng: 31.2357
+    dropoffLat: 30.0166
+    dropoffLng: 31.4333
+    price: 320.0
+    estimatedEta: 45
+    status: CREATED
+  }) {
+    id
+    userId
+    status
+    price
+    estimatedEta
+    user {
+      id
+      name
+      email
+      role
+    }
+    driver {
+      id
+      userId
+      status
+      user {
+        name
+      }
+    }
+  }
+}
+
+# 3. Find Nearest Drivers Query
+query FindNearestDrivers($pickupLat: Float!, $pickupLng: Float!) {
+  findNearestDrivers(pickupLocation: {
+    latitude: $pickupLat
+    longitude: $pickupLng
+  }) {
+    id
+    userId
+    status
+    phone
+    vehicleType
+    licensePlate
+    location {
+      latitude
+      longitude
+    }
+    user {
+      id
+      name
+      email
+    }
+    distance
+    estimatedArrival
+  }
+}
+
+# 4. Assign Driver to Order Mutation
+mutation AssignDriverToOrder {
+  assignDriverToOrder(input: {
+    orderId: 1
+    driverId: 1
+  }) {
+    id
+    userId
+    status
+    driverId
+    driver {
+      id
+      userId
+      status
+      user {
+        name
+      }
+    }
+    user {
+      id
+      name
+    }
+  }
+}
+
+# 5. Update Driver Location Mutation
+mutation UpdateDriverLocation {
+  updateDriverLocation(input: {
+    driverId: 1
+    lat: 30.0500
+    lng: 31.2400
+  }) {
+    id
+    userId
+    phone
+    vehicleType
+    status
+    updatedAt
+    user {
+      name
+    }
+  }
+}
+
+# ====== COMPLETE WORKFLOW EXAMPLE ======
+
+# Step 1: Create drivers (creates users and drivers together)
+mutation CreateTestDrivers {
+  driver1: createDriver(input: {
+    # User details
+    email: "ahmed.driver@example.com"
+    password: "password123"
+    name: "Ahmed Mohamed"
+    
+    # Driver details
+    phone: "+201234567890"
+    vehicleType: "motorcycle"
+    licensePlate: "ABC-1234"
+    lat: 30.0444
+    lng: 31.2357
+  }) {
+    id userId phone vehicleType licensePlate status
+  }
+  
+  driver2: createDriver(input: {
+    # User details
+    email: "sara.driver@example.com"
+    password: "password123"
+    name: "Sara Ali"
+    
+    # Driver details
+    phone: "+201112223334"
+    vehicleType: "car"
+    licensePlate: "XYZ-5678"
+    lat: 30.0166
+    lng: 31.4333
+  }) {
+    id userId phone vehicleType licensePlate status
+  }
+}
+
+# Step 2: Create customer user first
+mutation CreateCustomerUser {
+  createUser(input: {
+    email: "john.customer@example.com"
+    password: "password123"
+    name: "John Doe"
+    role: USER
+  }) {
+    id email name role
+  }
+}
+
+# Step 3: Create order (user must exist first)
+mutation CreateOrderWithAutoAssign {
+  createOrder(input: {
+    userId: 1  # Use the actual user ID from the response above (might be 1, 2, 3, etc.)
+    pickupLat: 30.0444
+    pickupLng: 31.2357
+    dropoffLat: 30.0166
+    dropoffLng: 31.4333
+    price: 320.0
+    estimatedEta: 45
+    status: CREATED
+  }) {
+    id
+    userId
+    status
+    price
+    estimatedEta
+    user {
+      id name email role
+    }
+    driver {
+      id userId status
+      user { name }
+    }
+  }
+}
+
+# Step 4: Track order status
+query GetOrderStatus($orderId: ID!) {
+  order(id: $orderId) {
+    id
+    userId
+    status
+    price
+    estimatedEta
+    driverId
+    user {
+      id
+      name
+      email
+    }
+    driver {
+      id
+      userId
+      status
+      phone
+      vehicleType
+      location {
+        latitude
+        longitude
+      }
+      user {
+        name
+      }
+    }
+    pickupLocation {
+      latitude
+      longitude
+    }
+    dropoffLocation {
+      latitude
+      longitude
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+# 6. Get All Drivers Query
+query GetAllDrivers {
+  drivers {
+    id
+    userId
+    status
+    phone
+    vehicleType
+    licensePlate
+    createdAt
+    updatedAt
+  }
+}
+
+# 7. Get Driver by ID Query
+query GetDriverById($driverId: ID!) {
+  driver(id: $driverId) {
+    id
+    userId
+    status
+    phone
+    vehicleType
+    licensePlate
+    createdAt
+    updatedAt
+  }
+}
+
+# 8. Get Driver by User ID Query
+query GetDriverByUserId($userId: ID!) {
+  driverByUser(userId: $userId) {
+    id
+    userId
+    status
+    phone
+    vehicleType
+    licensePlate
+    createdAt
+    updatedAt
+  }
+}
+
+# ====== REST API EXAMPLES ======
+
+# POST /api/drivers
+{
+  "name": "Ahmed Mohamed",
+  "email": "ahmed.driver@example.com",
+  "phone": "+201234567890",
+  "vehicleType": "motorcycle",
+  "licensePlate": "ABC-1234",
+  "currentLocation": {
+    "latitude": 30.0444,
+    "longitude": 31.2357
+  }
+}
+
+# POST /api/orders
+{
+  "customerName": "John Doe",
+  "customerPhone": "+201234567891",
+  "customerEmail": "john.customer@example.com",
+  "pickupAddress": "Tahrir Square, Cairo",
+  "pickupLocation": {
+    "latitude": 30.0444,
+    "longitude": 31.2357
+  },
+  "deliveryAddress": "Nasr City, Cairo",
+  "deliveryLocation": {
+    "latitude": 30.0166,
+    "longitude": 31.4333
+  },
+  "items": [
+    {
+      "name": "Pizza Margherita",
+      "quantity": 2,
+      "price": 120
+    }
+  ],
+  "priority": "HIGH",
+  "autoAssignDriver": true
+}
+
+# PUT /api/drivers/{driverId}/location
+{
+  "location": {
+    "latitude": 30.0500,
+    "longitude": 31.2400
+  }
+}
+
+# GET /api/drivers/nearest?pickupLat=30.0444&pickupLng=31.2357&limit=5
+
+# ====== TEST SCENARIO ======
+
+# 1. Create 3 drivers at different Cairo locations
+# 2. Create order from Cairo Center
+# 3. System automatically assigns nearest driver
+# 4. Driver receives notification
+# 5. Customer gets order status update
+# 6. Track driver location in real-time

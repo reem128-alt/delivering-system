@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Offline User Test</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .online { background: #d4edda; color: #155724; }
+        .offline { background: #f8d7da; color: #721c24; }
+        .notification { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .log { background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; }
+        button { padding: 10px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🔋 Offline User Notification Test</h1>
+    
+    <div id="status" class="status offline">❌ Offline</div>
+    
+    <div>
+        <h3>👤 User Simulation</h3>
+        <input type="text" id="token" placeholder="JWT Token" style="width: 400px;">
+        <br><br>
+        <button onclick="goOnline()">Go Online</button>
+        <button onclick="goOffline()">Go Offline</button>
+        <button onclick="checkStoredNotifications()">Check Stored Notifications</button>
+    </div>
+    
+    <div>
+        <h3>📦 Create Order (Test Notification)</h3>
+        <input type="number" id="userId" placeholder="User ID (for order)" value="1">
+        <input type="number" id="driverUserId" placeholder="Driver User ID (for notifications)" value="4">
+        <button onclick="createOrder()">Create Order</button>
+    </div>
+    
+    <div>
+        <h3>🔔 Notifications</h3>
+        <div id="notifications"></div>
+    </div>
+    
+    <div>
+        <h3>📋 Event Log</h3>
+        <div id="log" class="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        let socket = null;
+        let isOnline = false;
+        
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function updateStatus(online) {
+            isOnline = online;
+            const statusDiv = document.getElementById('status');
+            if (online) {
+                statusDiv.className = 'status online';
+                statusDiv.textContent = '✅ Online';
+            } else {
+                statusDiv.className = 'status offline';
+                statusDiv.textContent = '❌ Offline';
+            }
+        }
+        
+        function goOnline() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                alert('Please enter JWT token');
+                return;
+            }
+            
+            if (socket) socket.disconnect();
+            
+            socket = io('http://localhost:3000/notifications', {
+                auth: { token }
+            });
+            
+            socket.on('connect', () => {
+                log('✅ User went online');
+                updateStatus(true);
+                
+                // Check for missed notifications when coming back online
+                socket.on('notification:new', (data) => {
+                    log('🔔 Real-time notification received');
+                    showNotification(data);
+                });
+            });
+            
+            socket.on('disconnect', () => {
+                log('🔌 User went offline');
+                updateStatus(false);
+            });
+        }
+        
+        function goOffline() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+            log('🔌 Manually went offline');
+            updateStatus(false);
+        }
+        
+        async function createOrder() {
+            const token = document.getElementById('token').value;
+            const userId = document.getElementById('userId').value;
+            
+            if (!token) {
+                alert('Please enter JWT token first');
+                return;
+            }
+            
+            const mutation = `
+                mutation CreateOrder {
+                    createOrder(input: {
+                        userId: ${userId}
+                        pickupLat: 30.0444
+                        pickupLng: 31.2357
+                        dropoffLat: 30.0166
+                        dropoffLng: 31.4333
+                        price: 320.0
+                        status: CREATED
+                    }) {
+                        id userId status price estimatedEta
+                    }
+                }
+            `;
+            
+            try {
+                log('📦 Creating order...');
+                const response = await fetch('http://localhost:3000/graphql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ query: mutation })
+                });
+                
+                const result = await response.json();
+                
+                if (isOnline) {
+                    log('✅ Order created - User ONLINE (should get WebSocket notification)');
+                } else {
+                    log('✅ Order created - User OFFLINE (notification stored in database)');
+                }
+                
+                log('📦 Order response: ' + JSON.stringify(result, null, 2));
+            } catch (error) {
+                log('❌ Order creation error: ' + error.message);
+            }
+        }
+        
+        async function checkStoredNotifications() {
+            const token = document.getElementById('token').value;
+            const driverUserId = document.getElementById('driverUserId').value;
+            
+            try {
+                log('🔍 Checking stored notifications...');
+                log(`📌 Querying for driverUserId: ${driverUserId}`);
+                
+                // Query notifications for this user
+                const query = `
+                    query GetUserNotifications($userId: Int!) {
+                        userNotifications(userId: $userId) {
+                            id type title message isRead createdAt data
+                        }
+                    }
+                `;
+                
+                const response = await fetch('http://localhost:3000/graphql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ 
+                        query,
+                        variables: { userId: parseInt(driverUserId) }
+                    })
+                });
+                
+                const result = await response.json();
+                log('📋 Stored notifications: ' + JSON.stringify(result, null, 2));
+                
+                // Display stored notifications
+                if (result.data && result.data.userNotifications) {
+                    result.data.userNotifications.forEach(notif => {
+                        showNotification({
+                            type: notif.type,
+                            title: notif.title,
+                            message: notif.message,
+                            data: notif.data,
+                            stored: true,
+                            createdAt: notif.createdAt
+                        });
+                    });
+                }
+            } catch (error) {
+                log('❌ Error checking stored notifications: ' + error.message);
+            }
+        }
+        
+        function showNotification(data) {
+            const notifDiv = document.getElementById('notifications');
+            const notif = document.createElement('div');
+            notif.className = 'notification';
+            notif.innerHTML = `
+                <strong>${data.stored ? '📋 Stored' : '🔔 Real-time'} ${data.type || 'Notification'}</strong><br>
+                ${data.title || 'No title'}<br>
+                ${data.message || 'No message'}<br>
+                <small>${data.stored ? 'Stored while offline' : 'Received while online'}</small>
+            `;
+            notifDiv.appendChild(notif);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+        }
+        
+        // Auto-detect online/offline status
+        window.addEventListener('online', () => {
+            log('🌐 Browser detected online connection');
+        });
+        
+        window.addEventListener('offline', () => {
+            log('📵 Browser detected offline connection');
+        });
+    </script>
+</body>
+</html>
